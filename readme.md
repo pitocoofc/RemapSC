@@ -25,3 +25,7 @@ Diferente de scanners comuns, o SuperGrep utiliza um sistema de **Polimorfismo R
    ```bash
    pkg install nodejs
    
+
+2. Clone o repositório:
+    ```bash
+    git clone [https://github.com/pitocoofc/Ndj-lib.git](https://github.com/pitocoofc/Ndj-lib.git)
