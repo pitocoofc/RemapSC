@@ -1,0 +1,20 @@
+{
+  "html_attributes": [
+    "onclick", 
+    "onerror", 
+    "onload", 
+    "onmouseover"
+  ],
+  "js_functions": [
+    "eval", 
+    "setTimeout", 
+    "setInterval", 
+    "document.write",
+    "innerHTML"
+  ],
+  "sensitive_patterns": [
+    "process.env",
+    "password",
+    "api_key"
+  ]
+}
