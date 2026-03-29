@@ -29,3 +29,13 @@ Diferente de scanners comuns, o SuperGrep utiliza um sistema de **Polimorfismo R
 2. Clone o repositório:
     ```bash
     git clone https://github.com/pitocoofc/SuperGrep.git
+
+
+
+3. Abra a pasta "SuperGrep"
+
+
+4. altere o input.html para o codigo html ou javascript que deseja verificar
+
+
+5. rode o "motor.js"
