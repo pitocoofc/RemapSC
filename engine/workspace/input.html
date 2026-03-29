@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Engine Studio v3.5 - Pro Maker</title>
+    <style>
+        :root { --bg: #1e1e1e; --panel: #252526; --accent: #4fc3f7; --border: #3c3c3c; --play: #4caf50; --danger: #f44336; }
+        body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', sans-serif; color: white; }
+        
+        /* UI Sidebar */
+        #sidebar {
+            position: fixed; left: 10px; top: 50%; transform: translateY(-50%);
+            width: 60px; background: rgba(30, 30, 30, 0.9); border: 1px solid var(--border);
+            display: flex; flex-direction: column; gap: 10px; padding: 10px; border-radius: 8px; z-index: 100;
+        }
+        .tool-btn { width: 40px; height: 40px; background: #333; border: 1px solid #555; color: white; border-radius: 4px; font-size: 10px; cursor: pointer; }
+
+        /* Play Bar */
+        #play-bar { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; gap: 10px; }
+        #btn-play { background: var(--play); border: none; color: white; padding: 10px 25px; border-radius: 5px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 0 #2e7d32; }
+        .btn-save { background: #673ab7; border: none; color: white; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 11px; }
+
+        /* Runtime UI */
+        #test-ui { display: none; position: fixed; inset: 0; pointer-events: none; z-index: 2000; }
+        #btn-stop { position: fixed; top: 10px; right: 10px; background: var(--danger); border: none; padding: 10px; color: white; border-radius: 5px; cursor: pointer; pointer-events: auto; }
+        #joy-container { position: absolute; bottom: 50px; left: 50px; width: 120px; height: 120px; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; pointer-events: auto; touch-action: none; }
+        #joy-stick { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; background: white; border-radius: 50%; transform: translate(-50%, -50%); }
+        #btn-jump { position: absolute; bottom: 60px; right: 40px; width: 70px; height: 70px; background: rgba(255,255,255,0.2); border: 2px solid white; border-radius: 50%; color: white; font-weight: bold; pointer-events: auto; }
+
+        /* Explorer */
+        #btn-open-explorer { position: fixed; right: 20px; top: 20px; z-index: 100; padding: 10px 20px; background: var(--accent); border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: #111; }
+        #right-panel { position: fixed; right: -320px; top: 0; width: 300px; height: 100%; background: var(--panel); border-left: 1px solid var(--border); transition: 0.3s; z-index: 101; display: flex; flex-direction: column; }
+        #right-panel.open { right: 0; }
+        .panel-header { padding: 15px; background: #333; font-size: 14px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
+        #explorer-box { flex: 1; overflow-y: auto; padding: 10px; border-bottom: 2px solid #111; }
+        .tree-item { padding: 5px; cursor: pointer; border-radius: 3px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+        .tree-item.selected { background: var(--accent); color: black; }
+        .tree-child { margin-left: 20px; color: #81c784; font-size: 11px; }
+
+        /* Sintaxe */
+        .c-blue { color: #4fc3f7; } .c-green { color: #81c784; } .c-red { color: #f44336; }
+
+        /* Properties */
+        #props-box { height: 420px; padding: 15px; overflow-y: auto; background: #1e1e1e; }
+        .prop-group { margin-bottom: 12px; }
+        .prop-group label { display: block; font-size: 10px; color: #888; margin-bottom: 4px; }
+        .input-row { display: flex; gap: 5px; }
+        .input-row input, select { width: 100%; background: #333; border: 1px solid #555; color: white; padding: 4px; font-size: 11px; }
+        
+        /* Modals */
+        .modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1a1a1a; border: 2px solid var(--accent); display: none; flex-direction: column; z-index: 3000; border-radius: 8px; padding: 15px; }
+        #save-window { width: 320px; }
+        #script-window { width: 85%; height: 80%; }
+        #settings-window { width: 280px; }
+        textarea { width: 100%; background: #000; color: #0f0; border: 1px solid #333; font-family: monospace; font-size: 12px; margin: 10px 0; resize: none; box-sizing: border-box; }
+
+        /* HUD JOGO */
+        #game-hud { position: fixed; inset: 0; pointer-events: none; z-index: 2100; display: none; }
+        .runtime-gui-el { position: absolute; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+<div id="play-bar">
+    <button id="btn-play" onclick="startTest()">INICIAR TESTE ▶</button>
+    <button class="btn-save" onclick="openSaveModal()">SALVAR / LER</button>
+</div>
+
+<div id="game-hud"></div>
+
+<div id="test-ui">
+    <button id="btn-stop" onclick="stopTest()">PARAR ⬛</button>
+    <div id="joy-container"><div id="joy-stick"></div></div>
+    <button id="btn-jump">PULAR</button>
+</div>
+
+<button id="btn-settings" onclick="document.getElementById('settings-window').style.display='flex'" style="position:fixed; left:20px; bottom:20px; z-index:100; width:50px; height:50px; border-radius:50%; background:#333; color:white; border:2px solid var(--accent); cursor:pointer;">⚙️</button>
+
+<div id="settings-window" class="modal">
+    <h3 style="margin:0 0 10px 0; font-size: 14px;">Configurações Globais</h3>
+    <div class="prop-group"><label>VELOCIDADE DO PLAYER</label><input type="number" id="conf-speed" value="0.15" step="0.01"></div>
+    <div class="prop-group"><label>TAMANHO DO PULO</label><input type="number" id="conf-jump" value="0.25" step="0.01"></div>
+    <div class="prop-group"><label>GRAVIDADE</label><input type="number" id="conf-grav" value="0.012" step="0.001"></div>
+    <div class="prop-group"><label>RENDERIZAÇÃO (DISTÂNCIA)</label><input type="number" id="conf-render" value="50"></div>
+    <button onclick="document.getElementById('settings-window').style.display='none'" style="background:var(--play); border:none; color:white; padding:10px; border-radius:4px; cursor:pointer;">FECHAR</button>
+</div>
+
+<div id="save-window" class="modal">
+    <h3 style="margin:0 0 10px 0; font-size: 14px;">Save / Load do Projeto</h3>
+    <textarea id="save-code" rows="10" placeholder="Cole o código aqui..."></textarea>
+    <div style="display:flex; gap:5px;">
+        <button onclick="copySaveCode()" style="flex:1; padding:10px; background:#444; border:none; color:white; cursor:pointer;">COPIAR</button>
+        <button onclick="loadFromText()" style="flex:1; padding:10px; background:var(--play); border:none; color:white; cursor:pointer;">CARREGAR</button>
+    </div>
+    <button onclick="document.getElementById('save-window').style.display='none'" style="margin-top:10px; background:none; border:none; color:gray; cursor:pointer; width:100%;">Fechar</button>
+</div>
+
+<div id="sidebar">
+    <button class="tool-btn" onclick="addCube()">BOX</button>
+    <button class="tool-btn" onclick="addSpawn()">SPAWN</button>
+    <button class="tool-btn" style="background:#ff9800" onclick="addGUI('text')">TXT</button>
+    <button class="tool-btn" style="background:#ff9800" onclick="addGUI('frame')">FRM</button>
+    <hr style="width:100%; border:0; border-top:1px solid #444">
+    <button class="tool-btn" onclick="setMode('translate')">W</button>
+    <button class="tool-btn" onclick="setMode('rotate')">E</button>
+    <button class="tool-btn" onclick="setMode('scale')">R</button>
+</div>
+
+<button id="btn-open-explorer" onclick="document.getElementById('right-panel').classList.toggle('open')">EXPLORER ☰</button>
+
+<div id="right-panel">
+    <div class="panel-header">EXPLORER <span onclick="document.getElementById('right-panel').classList.remove('open')" style="cursor:pointer">✖</span></div>
+    <div id="explorer-box">
+        <div class="tree-item" onclick="openGeneralScript()" style="color:#ffeb3b">📁 Arquivo Geral</div>
+        <hr style="border:0; border-top:1px solid #444">
+        <div id="objects-list"></div>
+    </div>
+    <div id="props-box">
+        <div id="prop-ui-main">
+            <div class="prop-group"><label>NOME DO OBJETO</label><input type="text" id="obj-name"></div>
+            <div class="prop-group"><label>POSIÇÃO</label><div class="input-row"><input type="number" id="pos-x" step="0.1"><input type="number" id="pos-y" step="0.1"><input type="number" id="pos-z" step="0.1"></div></div>
+            <div class="prop-group"><label>ESCALA</label><div class="input-row"><input type="number" id="sca-x" step="0.1"><input type="number" id="sca-y" step="0.1"><input type="number" id="sca-z" step="0.1"></div></div>
+            <button onclick="addScriptToSelected()" style="width:100%; padding:10px; background:#444; color:white; border:none; cursor:pointer; border-radius:4px;">✚ ADICIONAR SCRIPT</button>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-top:10px;">
+                <button onclick="duplicateSelected()" style="padding:8px; background:#5c5c5c; border:none; color:white; font-size:10px; cursor:pointer; border-radius:4px;">COPIAR</button>
+                <button onclick="deleteSelected()" style="padding:8px; background:var(--danger); border:none; color:white; font-size:10px; cursor:pointer; border-radius:4px;">DELETAR</button>
+            </div>
+        </div>
+        <div id="prop-gui-main" style="display:none">
+            <div class="prop-group"><label>TEXTO/VARIÁVEL</label><input type="text" id="gui-val-input"></div>
+            <div class="prop-group"><label>MODO</label>
+                <select id="gui-mode-select">
+                    <option value="fixed">Fixo (Texto)</option>
+                    <option value="var">Variável (Geral)</option>
+                </select>
+            </div>
+            <div class="prop-group"><label>POSIÇÃO (X/Y)</label><div class="input-row"><input type="number" id="gui-x-input"><input type="number" id="gui-y-input"></div></div>
+            <div class="prop-group"><label>TAMANHO (W/H)</label><div class="input-row"><input type="number" id="gui-w-input"><input type="number" id="gui-h-input"></div></div>
+            <div class="prop-group"><label>COR</label><input type="color" id="gui-color-input" style="height:30px;"></div>
+            <button onclick="deleteGUI()" style="width:100%; padding:10px; background:var(--danger); border:none; color:white; cursor:pointer; border-radius:4px;">DELETAR GUI</button>
+        </div>
+    </div>
+</div>
+
+<div id="script-window" class="modal">
+    <div class="panel-header">EDITOR DE CÓDIGO <button onclick="saveAndCloseScript()" style="background:green; color:white; border:none; padding:5px 15px; cursor:pointer; border-radius:4px;">SALVAR</button></div>
+    <div id="code-editor" contenteditable="true" spellcheck="false" oninput="highlight()" style="flex:1; background:#111; color:#d4d4d4; padding:20px; font-family:monospace; outline:none; white-space:pre; overflow:auto;"></div>
+</div>
+
+<script type="importmap">
+  { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { TransformControls } from 'three/addons/controls/TransformControls.js';
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB); 
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(10, 10, 10);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+    const sun = new THREE.DirectionalLight(0xffffff, 1);
+    sun.position.set(5, 15, 10);
+    scene.add(sun);
+    const grid = new THREE.GridHelper(50, 50, 0x444444, 0x888888);
+    scene.add(grid);
+
+    const orbit = new OrbitControls(camera, renderer.domElement);
+    const transform = new TransformControls(camera, renderer.domElement);
+    scene.add(transform);
+    transform.addEventListener('dragging-changed', e => orbit.enabled = !e.value);
+    transform.addEventListener('change', () => { if(transform.object) updateUIFields(transform.object); });
+
+    let gameObjects = [];
+    let guis = [];
+    let generalScript = { code: "-- Script Geral\ntext = jump" };
+    let selectedObject = null;
+    let selectedGUI = null;
+    let spawnPoint = null;
+    let isTesting = false;
+    let playerPos = new THREE.Group();
+    scene.add(playerPos);
+
+    let pitch = 0, yaw = 0;
+
+    // --- SINTAXE ---
+    window.highlight = () => {
+        const ed = document.getElementById('code-editor');
+        let text = ed.innerText;
+        text = text.replace(/moveX/g, '<span class="c-blue">moveX</span>');
+        text = text.replace(/aoTocar/g, '<span class="c-green">aoTocar</span>');
+        text = text.replace(/girar/g, '<span class="c-red">girar</span>');
+    };
+
+    // --- GUI LOGIC ---
+    window.addGUI = (type) => {
+        const g = { 
+            id: Date.now(), 
+            type, 
+            value: type === 'text' ? "Texto" : "", 
+            mode: "fixed",
+            x: 50, y: 50, w: 100, h: 40,
+            color: type === 'text' ? "#ffffff" : "#444444"
+        };
+        guis.push(g); updateExplorer();
+    };
+
+    window.openGeneralScript = () => {
+        activeScr = generalScript;
+        document.getElementById('code-editor').innerText = generalScript.code;
+        document.getElementById('script-window').style.display = 'flex';
+    };
+
+    window.selectGUI = (g) => {
+        selectedGUI = g; selectedObject = null; transform.detach();
+        document.getElementById('prop-ui-main').style.display = 'none';
+        document.getElementById('prop-gui-main').style.display = 'block';
+        
+        // Sincronizar painel
+        document.getElementById('gui-val-input').value = g.value;
+        document.getElementById('gui-mode-select').value = g.mode;
+        document.getElementById('gui-x-input').value = g.x;
+        document.getElementById('gui-y-input').value = g.y;
+        document.getElementById('gui-w-input').value = g.w;
+        document.getElementById('gui-h-input').value = g.h;
+        document.getElementById('gui-color-input').value = g.color;
+        updateExplorer();
+    };
+
+    // Sync GUI Inputs
+    const syncGUI = () => {
+        if(!selectedGUI) return;
+        selectedGUI.value = document.getElementById('gui-val-input').value;
+        selectedGUI.mode = document.getElementById('gui-mode-select').value;
+        selectedGUI.x = parseInt(document.getElementById('gui-x-input').value);
+        selectedGUI.y = parseInt(document.getElementById('gui-y-input').value);
+        selectedGUI.w = parseInt(document.getElementById('gui-w-input').value);
+        selectedGUI.h = parseInt(document.getElementById('gui-h-input').value);
+        selectedGUI.color = document.getElementById('gui-color-input').value;
+    };
+    ['gui-val-input', 'gui-mode-select', 'gui-x-input', 'gui-y-input', 'gui-w-input', 'gui-h-input', 'gui-color-input'].forEach(id => {
+        document.getElementById(id).oninput = syncGUI;
+    });
+
+    window.deleteGUI = () => { guis = guis.filter(g => g !== selectedGUI); selectedGUI = null; updateExplorer(); };
+
+    // --- SAVE / LOAD (Preservado) ---
+    window.openSaveModal = () => {
+        const data = {
+            objs: gameObjects.map(obj => ({
+                name: obj.name, type: obj.userData.type,
+                pos: obj.position.toArray(), sca: obj.scale.toArray(), rot: obj.rotation.toArray().slice(0,3),
+                scripts: obj.userData.scripts
+            })),
+            guis: guis,
+            gen: generalScript.code
+        };
+        document.getElementById('save-code').value = JSON.stringify(data);
+        document.getElementById('save-window').style.display = 'flex';
+    };
+
+    window.copySaveCode = () => {
+        const copyText = document.getElementById("save-code");
+        copyText.select();
+        document.execCommand("copy");
+        alert("Código copiado!");
+    };
+
+    window.loadFromText = () => {
+        try {
+            const data = JSON.parse(document.getElementById('save-code').value);
+            gameObjects.forEach(o => scene.remove(o));
+            gameObjects = []; spawnPoint = null; 
+            guis = data.guis || []; 
+            generalScript.code = data.gen || "";
+            data.objs.forEach(d => {
+                const mesh = spawn(d.type, d.type === 'spawn' ? 0x00ff00 : 0x808080);
+                mesh.name = d.name; mesh.position.fromArray(d.pos);
+                mesh.scale.fromArray(d.sca); mesh.rotation.fromArray(d.rot);
+                mesh.userData.scripts = d.scripts || [];
+                if(d.type === 'spawn') spawnPoint = mesh;
+            });
+            updateExplorer();
+            document.getElementById('save-window').style.display = 'none';
+        } catch(e) { alert("Erro ao carregar projeto!"); }
+    };
+
+    // --- JOYSTICK E CAMERA (Preservado) ---
+    let joyX = 0, joyY = 0;
+    const stick = document.getElementById('joy-stick');
+    const joyBase = document.getElementById('joy-container');
+
+    joyBase.addEventListener('touchmove', (e) => {
+        const rect = joyBase.getBoundingClientRect();
+        const x = e.touches[0].clientX - (rect.left + rect.width/2);
+        const y = e.touches[0].clientY - (rect.top + rect.height/2);
+        const dist = Math.min(Math.sqrt(x*x + y*y), 50);
+        const angle = Math.atan2(y, x);
+        joyX = (Math.cos(angle) * dist) / 50; joyY = (Math.sin(angle) * dist) / 50;
+        stick.style.left = `calc(50% + ${Math.cos(angle) * dist}px)`;
+        stick.style.top = `calc(50% + ${Math.sin(angle) * dist}px)`;
+    });
+    joyBase.addEventListener('touchend', () => { stick.style.left = '50%'; stick.style.top = '50%'; joyX = 0; joyY = 0; });
+
+    let lastX=0, lastY=0;
+    window.addEventListener('touchstart', (e) => { if(isTesting) { lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; } });
+    window.addEventListener('touchmove', (e) => {
+        if(!isTesting || e.target.closest('#joy-container') || e.target.id === 'btn-jump') return;
+        const dx = e.touches[0].clientX - lastX;
+        const dy = e.touches[0].clientY - lastY;
+        lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+        yaw -= dx * 0.005; pitch -= dy * 0.005;
+        pitch = Math.max(-Math.PI/2.1, Math.min(Math.PI/2.1, pitch));
+        playerPos.rotation.y = yaw;
+    });
+
+    // --- CORE (Preservado) ---
+    window.addCube = () => spawn('Box', 0x808080);
+    window.addSpawn = () => { if(spawnPoint) removeObject(spawnPoint); spawnPoint = spawn('Spawn', 0x00ff00); spawnPoint.scale.set(1.5, 0.1, 1.5); };
+
+    function spawn(type, color) {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshPhongMaterial({ color }));
+        mesh.userData = { scripts: [], type: type.toLowerCase() };
+        mesh.name = type + "_" + (gameObjects.length + 1);
+        scene.add(mesh); gameObjects.push(mesh); select(mesh); return mesh;
+    }
+
+    window.deleteSelected = () => { if(selectedObject) { removeObject(selectedObject); select(null); } };
+    function removeObject(obj) { if(obj === spawnPoint) spawnPoint = null; scene.remove(obj); gameObjects = gameObjects.filter(o => o !== obj); updateExplorer(); }
+
+    window.duplicateSelected = () => {
+        if(!selectedObject) return;
+        const clone = spawn(selectedObject.userData.type,
